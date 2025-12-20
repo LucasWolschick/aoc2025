@@ -1,21 +1,23 @@
 def parse(line)
-  line.split('').map(&:to_i).to_a
+  line.chars.map(&:to_i)
 end
 
 def parse_entries(src)
   src.lines
-    .filter_map do |s|
-      s = s.strip
-      s.empty? ? nil : parse(s)
-    end
+    .map(&:strip)
+    .filter_map { |s| s.empty? ? nil : parse(s) }
 end
 
+# we have to do this because Enumerable#max is not stable
+# (ie not guaranteed to return first max value in enumerable)
 def find_max(array)
+  max = array.first
   max_i = 0
-  max = array[0]
-  for i in 0...array.length
-    max_i, max = i, array[i] if array[i] > max
+  
+  array.each_with_index do |v, pos|
+    max_i, max = pos, v if v > max
   end
+
   [max, max_i]
 end
 
@@ -25,21 +27,22 @@ def max_row_joltage_2(row)
   l * 10 + r
 end
 
-def max_row_joltage(row, n)
-  start_at = 0
-  n.downto(1).sum do |i|
-    num, new_start_at = find_max(i > 1 ? row[start_at...-(i-1)] : row[start_at..])
-    start_at = start_at + new_start_at + 1
-    num * (10 ** (i-1))
+def max_row_joltage(row, digits)
+  offset = 0
+  digits.downto(1).sum do |pos|
+    window = pos > 1 ? row[offset...-(pos-1)] : row[offset..]
+    value, index = find_max(window)
+    offset += index + 1
+    value * (10 ** (pos-1))
   end
 end
 
 def part01(data)
-  data.map {|r| max_row_joltage(r, 2)}.sum
+  data.sum {|r| max_row_joltage(r, 2)}
 end
 
 def part02(data)
-  data.map {|r| max_row_joltage(r, 12)}.sum
+  data.sum {|r| max_row_joltage(r, 12)}
 end
 
 if __FILE__ == $0
