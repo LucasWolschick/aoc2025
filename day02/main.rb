@@ -1,3 +1,6 @@
+# todo: there's probably a better number-theoretical way of doing this
+# (pattern: 123123123 / 1001001 == 123, 12341234 / 1001 == 1234)
+
 def parse(line)
   start, finish = line.split('-', 2).map(&:to_i)
   start..finish
