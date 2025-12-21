@@ -10,20 +10,15 @@ class Maze
 
     @width = lines[0].length
     @height = lines.length
-    @data = lines.map { |line| line.chars.map {|c| c == '@'} }
+    @data = lines.map { |line| line.chars.map { |c| c == '@' } }
   end
 
   def occupied?(x, y)
-    return false if !bounded?(x, y)
-    @data[y][x]
+    bounded?(x, y) && @data[y][x]
   end
 
   def bounded?(x, y)
     0 <= x && x < @width && 0 <= y && y < @height
-  end
-
-  def at(x, y)
-    MazeCell.new(self, x, y)
   end
 
   def set!(x, y)
@@ -56,29 +51,29 @@ class MazeCell
     @maze = maze
   end
 
-  def occupied?()
+  def occupied?
     @maze.occupied?(@x, @y)
   end
 
-  def bounded?()
+  def bounded?
     @maze.bounded?(@x, @y)
   end
 
-  def neighbors()
+  def neighbors
     @maze.neighbors(@x, @y)
   end
 
-  def set!()
+  def set!
     @maze.set!(@x, @y)
   end
 
-  def unset!()
+  def unset!
     @maze.unset!(@x, @y)
   end
 end
 
 def find_removable_rolls(maze)
-  maze.all_cells.select { |cell| cell.neighbors.count(&:occupied?) < 4 && cell.occupied? }
+  maze.all_cells.select { |cell| cell.occupied? && cell.neighbors.count(&:occupied?) < 4 }
 end
 
 def parse_entries(src)
@@ -92,7 +87,7 @@ end
 def part02(data)
   removed = 0
   rolls = find_removable_rolls(data)
-  while !rolls.empty?
+  until rolls.empty?
     rolls.each(&:unset!)
     removed += rolls.length
     rolls = find_removable_rolls(data)
