@@ -5,31 +5,37 @@ def parse_entries(src)
   source_src, *splits_srcs = src.lines
   source = source_src.index("S")
   splits = splits_srcs.map do |split_src|
-    split_src.chars.each.with_index.select { |c, _| c == "^" }.map(&:last)
+    split_src.each_char.with_index.filter_map { |c, i| i if c == "^" }
   end.reject(&:empty?)
   [source, splits]
 end
 
 def build_splits_matrix(splits, n)
   mat = Matrix.I(n)
+
+  # NB: offsets below will always be inside bounds for the inputs
+  # we're solving.
   splits.each do |split|
     mat[split, split] -= 1
     mat[split - 1, split] += 1
     mat[split + 1, split] += 1
   end
+
   mat
 end
 
-def premultiply_splits(splits_list)
-  n = splits_list.flatten.max + 2
+def premultiply_splits(n, splits_list)
   splits_list.reduce(Matrix.I(n)) do |acc, split_list|
      build_splits_matrix(split_list, n) * acc
   end
 end
 
 def compute_beams(start_pos, splits_list)
-  mat = premultiply_splits(splits_list)
-  vec = Matrix.build(mat.column_count, 1) { |row, _| row == start_pos ? 1 : 0 }
+  n = splits_list.flatten.max + 2
+  mat = premultiply_splits(n, splits_list)
+  vec = Matrix.column_vector( 
+    Array.new(n) { |row, _| row == start_pos ? 1 : 0 }
+  )
   mat * vec
 end
 
@@ -43,7 +49,7 @@ def count_splits_merging(start_pos, splits_list)
     vec = build_splits_matrix(split_list, n) * vec
     after_count = vec.sum
     splits += after_count - before_count
-    vec = vec.collect { |e, _, _| [e, 1].min }
+    vec = vec.map { |e| e > 1 ? 1 : e }
   end
 
   splits
