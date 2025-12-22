@@ -1,27 +1,20 @@
 class Vector3
-  attr_accessor :x, :y, :z
+  attr_reader :x, :y, :z
 
   def initialize(x, y, z)
     @x, @y, @z = x, y, z
+    freeze
   end
 
-  def magnitude
-    (@x**2 + @y**2 + @z**2) ** 0.5
-  end
-
-  def +(rhs)
-    Vector3.new(@x + rhs.x, @y + rhs.y, @z + rhs.z)
-  end
-
-  def -(rhs)
-    Vector3.new(@x - rhs.x, @y - rhs.y, @z - rhs.z)
-  end
+  def magnitude = Math.sqrt(@x**2 + @y**2 + @z**2)
+  def +(rhs) = Vector3.new(@x + rhs.x, @y + rhs.y, @z + rhs.z)
+  def -(rhs) = Vector3.new(@x - rhs.x, @y - rhs.y, @z - rhs.z)
 end
 
 
 def parse(line)
   nums = line.split(',').map(&:strip).map(&:to_i)
-  Vector3.new *nums
+  Vector3.new(*nums)
 end
 
 def parse_entries(src)
@@ -36,8 +29,7 @@ def part01(data)
   positions, connections = data
   vertices = (0...positions.length).to_a
   
-  all_edges = vertices.product(vertices).select { |l, r| l < r }
-  edge_distances = all_edges.map do |l, r|
+  edge_distances = vertices.combination(2).map do |l, r|
     [[l, r], (positions[l] - positions[r]).magnitude]
   end
   
@@ -73,6 +65,7 @@ def part01(data)
     while i = i_queue.shift
       graph[i].each do |j|
         next if i_visited.member?(j)
+        
         i_visited.add(j)
         i_queue << j
       end
@@ -89,22 +82,18 @@ def part02(data)
   positions, _ = data
   vertices = (0...positions.length).to_a
   
-  all_edges = vertices.product(vertices).select { |l, r| l < r }
-  edge_distances = all_edges.map do |l, r|
+  edge_distances = vertices.combination(2).map do |l, r|
     [[l, r], (positions[l] - positions[r]).magnitude]
   end.sort_by(&:last)
   
   # build graph
   groups = vertices.each_with_index.to_h
   group_count = groups.length
-  graph = vertices.map {|| []}
 
   while group_count > 1
     edge, _ = edge_distances.shift
 
     i, j = edge
-    graph[i] << j
-    graph[j] << i
 
     if groups[i] != groups[j]
       other_color = groups[j]
