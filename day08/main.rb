@@ -35,13 +35,16 @@ def part01(data)
   
   # build graph
   best = edge_distances.sort_by(&:last).take(connections)
-  graph = vertices.map {|| []}
+  graph = Array.new(vertices.length) { [] }
   best.each { |edge, _| l, r = edge; graph[l] << r; graph[r] << l }
 
   # find islands using (some) search
   visited = Set.new []
-  parents = {}
+  roots = []
   vertices.each do |i|
+    next if visited.member?(i)
+    roots << i
+
     queue = [i]
     visited.add(i)
 
@@ -50,16 +53,13 @@ def part01(data)
         next if visited.member?(j)
 
         visited.add(j)
-        parents[j] = u
         queue << j
       end
     end
   end
   
   # identify islands and their sizes
-  island_heads = vertices.reject { |v| parents.key? v }
-
-  island_sizes = island_heads.to_h do |v|
+  island_sizes = roots.to_h do |v|
     i_visited = Set.new [v]
     i_queue = [v]
     while i = i_queue.shift
