@@ -6,19 +6,24 @@ def parse_entries(src)
 end
 
 def point_in_edges?(p, poly)
+  px, py = p
+
   poly.each_with_index.any? do |a, i|
     b = poly[(i + 1) % poly.length]
 
-    if a[0] == b[0]
+    ax, ay = a
+    bx, by = b
+
+    if ax == bx
       # vertical edge
-      p[0] == a[0] &&
-        ((a[1] <= p[1] && p[1] <= b[1]) ||
-        (b[1] <= p[1] && p[1] <= a[1]))
-    elsif a[1] == b[1]
+      px == ax &&
+        ((ay <= py && py <= by) ||
+        (by <= py && py <= ay))
+    elsif ay == by
       # horizontal edge
-      p[1] == a[1] &&
-        ((a[0] <= p[0] && p[0] <= b[0]) ||
-        (b[0] <= p[0] && p[0] <= a[0]))
+      py == ay &&
+        ((ax <= px && px <= bx) ||
+        (bx <= px && px <= ax))
     else
       false
     end
@@ -28,12 +33,16 @@ end
 # for simple polygons with axis-aligned edges only, assuming that vertices on the boundary are inside.
 def point_in_area?(point, poly)
   return true if point_in_edges?(point, poly)
+  px, py = point
 
   parity = (poly + [poly.first]).each_cons(2)
-    .count { |a, b| 
-      a[0] == b[0] && # vertical edges
-      a[0] > point[0] && # which cross the ray
-      (a[1] <= point[1] && point[1] < b[1] || b[1] <= point[1] && point[1] < a[1]) # to the right of the point
+    .count { |a, b|
+      ax, ay = a
+      bx, by = b
+
+      ax == bx && # vertical edges
+      ax > px && # which cross the ray
+      (ay <= py && py < by || by <= py && py < ay) # to the right of the point
     }
   
   parity % 2 == 1
@@ -41,38 +50,41 @@ end
 
 # assuming the polygon's edges and supplied edge are axis-aligned; does not consider collinear intersections
 def edge_intersects_area?(edge, poly)
-  e1, e2 = edge
+  (e0x, e0y), (e1x, _) = edge
   
-  e0x, e0y = e1
-  e1x, _ = e2
-
   if e0x == e1x
     # vertical edge, check horiz poly edges
     x = e0x
     y0, y1 = edge.map(&:last).minmax
     (poly + [poly.first]).each_cons(2).any? do |l, r|
-      l[1] == r[1] && 
-        (l[0] < x && x < r[0] || r[0] < x && x < l[0]) &&
-        y0 < l[1] && l[1] < y1
+      lx, ly = l
+      rx, ry = r
+      
+      ly == ry && 
+        (lx < x && x < rx || rx < x && x < lx) &&
+        y0 < ly && ly < y1
     end
   else
     # horizontal edge, check vertical poly edges
     y = e0y
     x0, x1 = edge.map(&:first).minmax
     (poly + [poly.first]).each_cons(2).any? do |l, r|
-      l[0] == r[0] &&
-        (l[1] < y && y < r[1] || r[1] < y && y < l[1]) &&
-        x0 < l[0] && l[0] < x1
+      lx, ly = l
+      rx, ry = r
+
+      lx == rx &&
+        (ly < y && y < ry || ry < y && y < ly) &&
+        x0 < lx && lx < x1
     end
   end
 end
 
 def part01(data)
-  data.combination(2).map do |l, r|
+  data.combination(2).max_by do |l, r|
     x0, y0 = l
     x1, y1 = r
     [[l, r], ((x1 - x0).abs + 1) * ((y1 - y0).abs + 1)]
-  end.max_by(&:last)
+  end.(&:last)
 end
 
 def part02(data)
