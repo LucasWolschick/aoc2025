@@ -1,10 +1,12 @@
 def parse_entries(src)
   graph = src.lines.map(&:strip).reject(&:empty?).map do |line|
-    from, to = line.split(": "); [from, to.split.map(&:strip)]
+    from, to = line.split(": ")
+    [from, to.split]
   end.to_h
   graph
 end
 
+# only works for DAGs
 def paths_from_to(graph, from, to)
   counts = {from => 1, to => 0}
 
