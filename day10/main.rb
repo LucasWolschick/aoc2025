@@ -35,58 +35,41 @@ def powerset(elems)
   end
 end
 
-def try_subtract_state(state, vector)
-  return nil, state if state.zip(vector).any? { |s, v| v > s }
+# thanks, tenthmascot!
+# https://old.reddit.com/r/adventofcode/comments/1pk87hl/2025_day_10_part_2_bifurcate_your_way_to_victory/
+def solve(state, vectors)
+  @cache ||= {}
 
-  factor = state.zip(vector).map { |a, b| a * b }.select { |a| a > 0 }.min
-
-  return factor, state.zip(vector).map { |s, v| s - factor * v }
-end
-
-# receives a joltage state and a list of lists of vectors grouped by their total joltage effect (sum of elements)
-def solve(state, grouped_vectors)
-  if grouped_vectors.empty? && state.sum > 0
-    puts "WEIRD END STATE!"
-    p [state, grouped_vectors]
-    nil
-  end
-  return 0 if grouped_vectors.empty? && state.sum == 0
-  return solve(state, grouped_vectors[1..]) if grouped_vectors[0].empty?
-
-  vector, *rest = grouped_vectors[0]
-  
-  # with vector
-  presses, new_state = try_subtract_state(state, vector)
-  if !presses.nil?
-    solved_with = solve(new_state, grouped_vectors)
-    presses_with = solved_with ? presses + solved_with : nil
+  if state.any?(&:negative?)
+    return Float::INFINITY
   end
 
-  # without vector
-  presses_without = solve(state, [rest, *grouped_vectors[1..]])
-
-  if !presses_with.nil? && !presses_without.nil?
-    [presses_with, presses_without].min
-  elsif !presses_with.nil?
-    presses_with
-  else
-    presses_without
+  if state.all?(&:zero?)
+    return 0
   end
-end
 
-def presses(initial_state, vectors)
-  # we want to find coefficients for each of the vectors such that their sum
-  # multiplied by their coefficients equals `targets`
-  
-  # count = 0
-  # state = initial_state
-  # state = vectors.sort_by(&:sum).reverse.reduce(state) do |state, vector|
-  #   try_subtract_state(state, vector)
-  # end
+  if @cache[[state, vectors]]
+    return @cache[[state, vectors]]
+  end
 
-  # count
-  grouped_vectors = vectors.sort_by(&:sum).reverse.chunk(&:sum).map(&:last)
-  solve(initial_state, grouped_vectors)
+  # figure out which button combos lead us to the final parity
+  desired_pattern = state.map { |x| x % 2 }
+  possibilities = powerset(vectors).select do |choices|
+    resulting_pattern = choices.reduce(Array.new(state.length) { 0 }) { |sum, vec| sum.zip(vec).map { |s, v| s + v } }
+    resulting_pattern.map { |x| x % 2 } == desired_pattern
+  end
+
+  if possibilities.empty?
+    return Float::INFINITY
+  end
+
+  # applying these presses, we're left with only pair indices
+  # IF a solution exists after these presses, it's going to be a set of presses repeated twice
+  # (otherwise we'd have a different parity)
+  @cache[[state, vectors]] = possibilities.map do |p|
+    new_state = p.reduce(state) { |state, vec| state.zip(vec).map { |s, v| s - v } }.map { |x| x / 2 }
+    2 * solve(new_state, vectors) + p.length
+  end.min
 end
 
 def part01(data)
@@ -98,15 +81,14 @@ def part01(data)
 end
 
 def part02(data)
-  data.sum do |machine|
+  data.each_with_index.sum do |machine, i|
     _, buttons, targets = machine
     
     # convert buttons to vectors
     dim = buttons.map(&:bit_length).max
     vectors = buttons.map { |option| 0.upto(dim - 1).map { |i| option[i] } }
-    
-    p machine
-    p presses(targets.clone, vectors)
+
+    solve(targets.clone, vectors)
   end
 end
 
