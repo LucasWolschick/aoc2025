@@ -1,11 +1,17 @@
 class PieceData
-  attr_reader :data, :w, :h
+  attr_reader :id, :data, :w, :h
 
-  def initialize(data)
+  def initialize(id, data)
+    @id = id
     @data = data.freeze
     @w = data[0].length
     @h = data.length
+    @area = data.sum { |row| row.sum { |column| column ? 1 : 0 }}
     freeze
+  end
+
+  def area
+    @area
   end
 end
 
@@ -47,15 +53,6 @@ class Piece
     0 <= tx && tx < @data.w && 0 <= ty && ty < @data.h && @data.data[ty][tx]
   end
 
-  def overlaps?(rhs)
-    (0...@data.h).each do |y|
-      (0...@data.w).each do |x|
-        return true if self[@x + x, @y + y] && rhs[@x + x, @y + y]
-      end
-    end
-    return false
-  end
-
   def to_s(char = "#")
     (0...@data.h).map do |y|
       (0...@data.w).map do |x|
@@ -76,8 +73,8 @@ class PuzzleData
   end
 end
 
-def parse_piece(piece_src)
-  PieceData.new(piece_src.lines[1..].map(&:strip).reject(&:empty?).map { |line| line.chars.map { |char| char == '#'} })
+def parse_piece(id, piece_src)
+  PieceData.new(id, piece_src.lines[1..].map(&:strip).reject(&:empty?).map { |line| line.chars.map { |char| char == '#'} })
 end
 
 def parse_puzzle(puzzle_src)
@@ -90,48 +87,97 @@ end
 def parse_entries(src)
   chunks = src.strip.split("\n\n")
   *pieces, puzzles = chunks
-  pieces = pieces.map { |piece| parse_piece(piece) }
+  pieces = pieces.each_with_index.map { |piece, id| parse_piece(id, piece) }
   puzzles = puzzles.lines.filter_map { |puzzle| parse_puzzle(puzzle.strip) if !puzzle.strip.empty? }
   [pieces, puzzles]
 end
 
-def try_solve(pieces, fixed_pieces, puzzle)
-  return true if pieces.empty?
+def as_bitmask(piece, w, h)
+  num = 0
+  0.upto(piece.data.w - 1).each do |x|
+    0.upto(piece.data.h - 1).each do |y|
+      tx = piece.x + x
+      ty = piece.y + y
+      i = ty*w + tx
+      num |= (1 << i) if piece[tx, ty]
+    end
+  end
+  num
+end
 
-  # assuming all pieces are 3x3
-  xs = (0...(puzzle.width - 2)).to_a
-  ys = (0...(puzzle.height - 2)).to_a
+def precompute_placement_masks(pieces, max_w, max_h)
+  xs = (0...(max_w - 2)).to_a
+  ys = (0...(max_h - 2)).to_a
   rots = [0, 1, 2, 3]
   flips = [0, 1]
 
-  p, *rest = pieces
-  xs.product(ys, rots, flips).any? do |x, y, rot, flip|
-    piece = p.clone
-    piece.x = x
-    piece.y = y
-    piece.rot = rot
-    piece.hflip = flip
+  memo = Hash.new { |h, k| h[k] = Set.new }
 
-    next if fixed_pieces.any? { |fixed| fixed.overlaps?(piece) }
-    
-    try_solve(rest, fixed_pieces + [piece], puzzle)
+  pieces.each do |piece_type|
+    xs.product(ys, rots, flips).each do |x, y, rot, flip|
+      piece = Piece.new(piece_type)
+      piece.x = x
+      piece.y = y
+      piece.rot = rot
+      piece.hflip = flip
+  
+      memo[piece_type] << as_bitmask(piece, max_w, max_h)
+    end
+  end
+  memo
+end
+
+def try_solve(board, requirements, piece_placements)
+  return true if requirements.empty?
+  new_placements = {}
+  req, req_i = requirements.each_with_index.min_by do |r, _|
+    new_placements[r] = piece_placements[r].select { |m| (board & m) == 0 }
+    new_placements[r].length
+  end
+  rest = requirements[...req_i] + requirements[req_i+1...]
+  valid = new_placements[req].select { |m| (board & m) == 0 }
+  return false if valid.empty?
+  valid.any? do |placement|
+    next if (board & placement) != 0
+    try_solve_memo(board | placement, rest, new_placements)
   end
 end
 
-def solve_puzzle(piece_types, puzzle)
-  # state space for a piece is (w - 2) * (h - 2) * 8
-  pieces = []
+def try_solve_memo(board, requirements, piece_placements)
+  @cache ||= {}
+  key = [board, requirements.map(&:id).tally.sort].flatten
+  return @cache[key] if @cache.key? (key)
+  @cache[key] = try_solve(board, requirements, piece_placements)
+end
+
+def solve_puzzle(piece_types, piece_placements, puzzle)
+  requirements = []
 
   puzzle.requirements.each_with_index do |count, piece_i|
-    pieces += Array.new(count) { Piece.new(piece_types[piece_i]) }
+    requirements += Array.new(count) { piece_types[piece_i] }
   end
 
-  try_solve(pieces, [], puzzle)
+  try_solve_memo(0, requirements, piece_placements.clone)
 end
 
 def part01(data)
-  pieces, puzzles = data
-  puzzles.select { |puzzle| p solve_puzzle(pieces, puzzle) }.count
+  piece_types, puzzles = data
+
+  max_w = puzzles.map(&:width).max
+  max_h = puzzles.map(&:height).max
+
+  puts "precomputing masks"
+  piece_placements = precompute_placement_masks(piece_types, max_w, max_h)
+  puts "total length: #{piece_placements.values.flatten.map(&:length).sum}"
+
+  puzzles.select do |puzzle| 
+    # prune based on area
+    required_area = puzzle.requirements.zip(piece_types).sum { |r, t| r * t.area }
+    available_area = puzzle.width * puzzle.height
+    required_area <= available_area
+  end.select do |puzzle|
+    p solve_puzzle(piece_types, piece_placements, puzzle)
+  end.count
 end
 
 def part02(data)
