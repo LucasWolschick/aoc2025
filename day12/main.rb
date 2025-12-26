@@ -162,30 +162,46 @@ end
 
 def part01(data)
   piece_types, puzzles = data
+  
+  solved = 0
+  trivially_solvable = 0
+  trivially_unsolvable = 0
 
-  max_w = puzzles.map(&:width).max
-  max_h = puzzles.map(&:height).max
-
-  puts "precomputing masks"
-  piece_placements = precompute_placement_masks(piece_types, max_w, max_h)
-  puts "total length: #{piece_placements.values.flatten.map(&:length).sum}"
-
-  puzzles.select do |puzzle| 
-    # prune based on area
+  remaining_puzzles = puzzles.reject do |puzzle|
+    # trivially solvable puzzles
+    piece_count = puzzle.requirements.sum
+    fittable = (puzzle.width / 3) * (puzzle.height / 3)
+    if piece_count <= fittable
+      solved += 1
+      trivially_solvable += 1
+      true
+    end
+  end.reject do |puzzle| 
+    # trivially unsolvable puzzles
     required_area = puzzle.requirements.zip(piece_types).sum { |r, t| r * t.area }
     available_area = puzzle.width * puzzle.height
-    required_area <= available_area
-  end.select do |puzzle|
-    p solve_puzzle(piece_types, piece_placements, puzzle)
-  end.count
-end
+    if required_area > available_area
+      trivially_unsolvable += 1
+      true
+    end
+  end
 
-def part02(data)
+  if remaining_puzzles.length > 0
+    max_w = puzzles.map(&:width).max
+    max_h = puzzles.map(&:height).max
+
+    piece_placements = precompute_placement_masks(piece_types, max_w, max_h)
+
+    solved += remaining_puzzles.select { |puzzle| solve_puzzle(piece_types, piece_placements, puzzle) }.count
+  end
+
+  puts "Trivially solvable: #{trivially_solvable}, trivially unsolvable: #{trivially_unsolvable}"
+
+  solved
 end
 
 if __FILE__ == $0
   src = File.read ARGV[0]
   input = parse_entries(src)
   puts "P1: #{part01 input}"
-  puts "P2: #{part02 input}"
 end
